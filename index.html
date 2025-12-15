@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8" />
+  <title>Community Tourism Map</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+
+  <style>
+    html, body { margin: 0; height: 100%; }
+    #map { width: 100%; height: 100%; }
+
+    .hint{
+      position:absolute; z-index:9999; left:10px; bottom:10px;
+      background:rgba(0,0,0,0.65); color:#fff; padding:8px 10px;
+      border-radius:10px; font-size:12px; max-width: 92vw;
+    }
+
+    .popup { max-width: 360px; }
+    .popup h3 { margin: 8px 0 6px 0; font-size: 16px; }
+    .popup .row { font-size: 13px; line-height: 1.45; margin: 2px 0; }
+    .popup .row b { display:inline-block; min-width: 120px; }
+    .popup img{
+      width:100%;
+      max-height:170px;
+      object-fit:cover;
+      border-radius:10px;
+      display:block;
+      margin-bottom:8px;
+      background:#f3f3f3;
+    }
+    .popup .muted { opacity: 0.85; }
+  </style>
+</head>
+
+<body>
+  <div id="map"></div>
+  <div class="hint">คลิกบนแผนที่ → ดูค่า y,x ที่ Console (F12)</div>
+
+  <!-- Leaflet JS -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <script>
+    /***********************
+     * 1) CONFIG
+     ***********************/
+    const IMG_WIDTH  = 2000;
+    const IMG_HEIGHT = 1414;
+
+    // ✅ ใส่ Spreadsheet ID ของคุณตรงนี้ (ของคุณใส่ไว้แล้ว)
+    const SPREADSHEET_ID = "1Bhs5pWubt0RZppJJ8ks1fs8Ovrh_fkENoF2W6NB77jY";
+
+    // ✅ ชื่อชีทที่เก็บข้อมูล
+    const SHEET_NAME = "places";
+
+    // ✅ URL JSON (กัน cache ด้วย)
+    const SHEET_URL = `https://opensheet.elk.sh/${SPREADSHEET_ID}/${SHEET_NAME}?t=${Date.now()}`;
+
+    /***********************
+     * 2) MAP INIT
+     ***********************/
+    const map = L.map('map', {
+      crs: L.CRS.Simple,
+      minZoom: -2,
+      maxZoom: 2,
+      zoomSnap: 0.25,
+      scrollWheelZoom: false
+    });
+
+    const bounds = [[0,0], [IMG_HEIGHT, IMG_WIDTH]];
+    L.imageOverlay('map.png', bounds).addTo(map);
+    map.fitBounds(bounds);
+
+    /***********************
+     * 3) HELPERS
+     ***********************/
+    function safe(v) {
+      if (v === null || v === undefined) return "-";
+      const s = String(v).trim();
+      return s ? s : "-";
+    }
+
+    // รองรับเลขไทย ๐-๙ ที่อาจเผลอพิมพ์มา
+    function thaiDigitsToArabic(str) {
+      const map = {'๐':'0','๑':'1','๒':'2','๓':'3','๔':'4','๕':'5','๖':'6','๗':'7','๘':'8','๙':'9'};
+      return String(str).replace(/[๐-๙]/g, d => map[d]);
+    }
+
+    function toNumber(v) {
+      if (v === null || v === undefined) return NaN;
+      const s = thaiDigitsToArabic(String(v)).replace(/,/g,'').trim();
+      const n = Number(s);
+      return Number.isFinite(n) ? n : NaN;
+    }
+
+    // แปลงลิงก์ Google Drive แบบ /file/d/.../view ให้เป็นลิงก์รูปโดยตรง
+    function normalizeImageUrl(url) {
+      if (!url) return "";
+      const u = String(url).trim();
+
+      // ถ้าเป็นแบบ uc?id=... อยู่แล้ว ใช้ได้เลย
+      if (u.includes("drive.google.com/uc?id=")) return u;
+
+      // ถ้าเป็นแบบ /file/d/FILE_ID/view
+      const m = u.match(/drive\.google\.com\/file\/d\/([^\/]+)\//);
+      if (m && m[1]) {
+        return `https://drive.google.com/uc?id=${m[1]}`;
+      }
+
+      // ถ้าเป็นลิงก์รูปปกติ (https://...jpg/png) ก็ใช้ได้
+      return u;
+    }
+
+    function popupHTML(p) {
+      const imgUrl = normalizeImageUrl(p.image_url);
+      const img = imgUrl
+        ? `<img src="${imgUrl}" alt="image" onerror="this.style.display='none';">`
+        : "";
+
+      return `
+        <div class="popup">
+          ${img}
+          <h3>${safe(p.community)}</h3>
+
+          <div class="row muted"><b>พื้นที่:</b> ต.${safe(p.tambon)} อ.${safe(p.amphoe)} จ.${safe(p.province)}</div>
+          <div class="row"><b>วัน-เวลาทำการ:</b> ${safe(p.hours)}</div>
+          <div class="row"><b>ช่วงฤดูกาลแนะนำ:</b> ${safe(p.season)}</div>
+          <div class="row"><b>กิจกรรม/ค่าบริการ:</b> ${safe(p.fee)}</div>
+          <div class="row"><b>กิจกรรมไฮไลท์:</b> ${safe(p.highlights)}</div>
+          <div class="row"><b>การเดินทาง:</b> ${safe(p.travel)}</div>
+          <div class="row"><b>รับ-ส่ง/ค่าบริการ:</b> ${safe(p.shuttle)}</div>
+          <div class="row"><b>ผู้ประสานงาน:</b> ${safe(p.contact)}</div>
+        </div>
+      `;
+    }
+
+    /***********************
+     * 4) LOAD SHEET + MARKERS
+     ***********************/
+    fetch(SHEET_URL)
+      .then(res => {
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        return res.json();
+      })
+      .then(rows => {
+        rows.forEach(p => {
+          const y = toNumber(p.y);
+          const x = toNumber(p.x);
+          if (!Number.isFinite(y) || !Number.isFinite(x)) return;
+
+          L.marker([y, x])
+            .addTo(map)
+            .bindPopup(popupHTML(p), { maxWidth: 360 });
+        });
+      })
+      .catch(err => {
+        console.error("Fetch sheet error:", err);
+        alert("โหลดข้อมูลจาก Google Sheet ไม่ได้\nถ้าเปิดแบบ file:/// ให้ลองเปิดผ่าน localhost");
+      });
+
+    /***********************
+     * 5) UX: click blank close popup
+     ***********************/
+    map.on('click', () => map.closePopup());
+
+    /***********************
+     * 6) UX: click show y,x for pinning
+     ***********************/
+    map.on('click', (e) => {
+      console.log("y,x =", e.latlng.lat.toFixed(2), e.latlng.lng.toFixed(2));
+    });
+  </script>
+</body>
+</html>
