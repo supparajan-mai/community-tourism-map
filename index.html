@@ -21,7 +21,7 @@
     html, body { margin: 0; height: 100%; }
     #map { width: 100%; height: 100%; }
 
-    /* ===== Topbar (ของเดิมที่คุณต้องการ) ===== */
+    /* ===== Topbar ===== */
     .topbar{
       position:absolute; z-index:10000; left:10px; right:10px; top:10px;
       display:flex; gap:10px; align-items:center; justify-content:space-between;
@@ -42,15 +42,28 @@
     .pill.active{ border-color:#111; font-weight:700; }
 
     .hint{
-      position:absolute; z-index:9999; left:10px; bottom:10px;
+      position:absolute; z-index:9999; left:10px; bottom:36px;
       background:rgba(0,0,0,0.65); color:#fff; padding:8px 10px;
       border-radius:10px; font-size:12px; max-width: 92vw;
     }
     .status{
-      position:absolute; z-index:9999; left:10px; bottom:54px;
+      position:absolute; z-index:9999; left:10px; bottom:80px;
       background:rgba(220,0,0,0.72); color:#fff; padding:8px 10px;
       border-radius:10px; font-size:12px; max-width: 92vw;
       display:none;
+    }
+
+    /* ===== Footer credit (ย้ายพัฒนาโดยลงล่าง) ===== */
+    .footer{
+      position:fixed;
+      bottom:0;
+      left:0;
+      right:0;
+      text-align:center;
+      font-size:12px;
+      padding:6px 10px;
+      background:rgba(255,255,255,0.9);
+      z-index:9000;
     }
 
     /* ===== Popup style ===== */
@@ -101,7 +114,7 @@
 </head>
 
 <body>
-  <!-- Topbar (ของเดิม) -->
+  <!-- Topbar -->
   <div class="topbar">
     <div class="logos">
       <img src="logo-cdd.png" alt="CDD">
@@ -116,16 +129,22 @@
       </div>
 
       <div class="credit">
-        แผนที่ชุมชนท่องเที่ยว OTOP นวัตวิถี จ.สุราษฎร์ธานี<br>
-        พัฒนาโดย: ศุภรา เจนพิชัย ตำแหน่ง นักวิชาการพัฒนาชุมชนชำนาญการ (HiPPS19)
+        แผนที่ชุมชนท่องเที่ยว OTOP นวัตวิถี จ.สุราษฎร์ธานี
       </div>
     </div>
   </div>
 
   <!-- Map -->
   <div id="map"></div>
+
+  <!-- Status + Hint -->
   <div id="status" class="status"></div>
   <div class="hint">คลิกบนแผนที่ → ดูค่า y,x ที่ Console (F12)</div>
+
+  <!-- Footer credit -->
+  <div class="footer">
+    พัฒนาโดย ศุภรา เจนพิชัย นักวิชาการพัฒนาชุมชนชำนาญการ (HiPPS19)
+  </div>
 
   <!-- Leaflet JS -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -145,14 +164,21 @@
 
     /***********************
      * 2) MAP INIT
+     * ✅ เปิดให้ zoom/drag ได้เต็มที่
      ***********************/
     const map = L.map('map', {
       crs: L.CRS.Simple,
       minZoom: -2,
-      maxZoom: 2,
+      maxZoom: 3,
       zoomSnap: 0.25,
-      scrollWheelZoom: false
+      scrollWheelZoom: true,
+      dragging: true,
+      touchZoom: true,
+      doubleClickZoom: true
     });
+
+    // แสดงปุ่ม + / - สำหรับ zoom
+    L.control.zoom({ position: 'bottomright' }).addTo(map);
 
     const bounds = [[0,0], [IMG_HEIGHT, IMG_WIDTH]];
     L.imageOverlay('map.png', bounds).addTo(map);
@@ -247,6 +273,8 @@
 
     /***********************
      * 6) POPUP HTML
+     * ✅ ตัด Slogan/Period/Preparation/Budget/For_NotFor ออก
+     * ✅ เก็บ Facilities ไว้ใต้ Highlights
      ***********************/
     function popupHTML(p) {
       const placeNameTH = safe(p.community);
@@ -283,30 +311,24 @@
             ${LANG==="en"?"Province":"จ."}${safe(p.province)}
           </div>
 
-          <!-- ของเดิม: ชั่วโมง/ฤดูกาล/ค่าบริการ/ไฮไลท์ -->
           <div class="row"><b>${LANG==="en"?"Hours":"วัน-เวลาทำการ"}:</b> ${textByLang(p.hours, p.hours_en)}</div>
           <div class="row"><b>${LANG==="en"?"Best season":"ช่วงฤดูกาลแนะนำ"}:</b> ${textByLang(p.season, p.season_en)}</div>
-          <div class="row"><b>${LANG==="en"?"Fee":"กิจกรรม/ค่าบริการ"}:</b> ${textByLang(p.fee, p.fee_en)}</div>
-          <div class="row"><b>${LANG==="en"?"Highlights":"กิจกรรมไฮไลท์"}:</b> ${textByLang(p.highlights, p.highlights_en)}</div>
+          <div class="row"><b>${LANG==="en"?"Fee":"กิจกรรม / ค่าบริการ"}:</b> ${textByLang(p.fee, p.fee_en)}</div>
 
-          <!-- เติมใหม่: Slogan/Period/Preparation/Budget/For_NotFor/Facilities -->
           <div class="section">
-            <div class="title">${LANG==="en"?"Visitor info":"ข้อมูลสำหรับนักท่องเที่ยว"}</div>
+            <div class="title">${LANG==="en"?"Highlights":"กิจกรรมไฮไลท์"}</div>
+            <div class="row">${textByLang(p.highlights, p.highlights_en)}</div>
 
-            <div class="row"><b>${LANG==="en"?"What you get":"ไปแล้วได้อะไร"}:</b> ${textByLang(p.Slogan, p.Slogan_en)}</div>
-            <div class="row"><b>${LANG==="en"?"Best period":"ไปช่วงไหนดีที่สุด"}:</b> ${textByLang(p.Period, p.Period_en)}</div>
-            <div class="row"><b>${LANG==="en"?"Preparation":"ต้องเตรียมตัวยังไง"}:</b> ${textByLang(p.Preparation, p.Preparation_en)}</div>
-            <div class="row"><b>${LANG==="en"?"Budget (approx.)":"ใช้เงินเท่าไหร่"}:</b> ${textByLang(p.Budget, p.Budget_en)}</div>
-            <div class="row"><b>${LANG==="en"?"Suitable / Not suitable":"ใครเหมาะ/ไม่เหมาะ"}:</b> ${textByLang(p.For_NotFor, p.For_NotFor_en)}</div>
-            <div class="row"><b>${LANG==="en"?"Facilities":"สิ่งอำนวยความสะดวก"}:</b> ${textByLang(p.Facilities, p.Facilities_En)}</div>
+            <div class="row"><b>${LANG==="en"?"Facilities":"สิ่งอำนวยความสะดวก"}:</b>
+              ${textByLang(p.Facilities, p.Facilities_En)}
+            </div>
           </div>
 
-          <!-- ของเดิม: การเดินทาง/รับส่ง/ติดต่อ -->
           <div class="section">
-            <div class="title">${LANG==="en"?"Travel & contact":"การเดินทางและติดต่อ"}</div>
+            <div class="title">${LANG==="en"?"Travel & Contact":"การเดินทางและติดต่อ"}</div>
 
             <div class="row"><b>${LANG==="en"?"How to go":"การเดินทาง"}:</b> ${travelText}</div>
-            <div class="row"><b>${LANG==="en"?"Shuttle":"รับ-ส่ง/ค่าบริการ"}:</b> ${textByLang(p.shuttle, p.shuttle_en)}</div>
+            <div class="row"><b>${LANG==="en"?"Shuttle":"รับ-ส่ง / ค่าบริการ"}:</b> ${textByLang(p.shuttle, p.shuttle_en)}</div>
             <div class="row"><b>${LANG==="en"?"Contact":"ผู้ประสานงาน"}:</b> ${textByLang(p.contact, p.contact_en)}</div>
           </div>
 
@@ -340,7 +362,6 @@
 
           L.marker([y, x])
             .addTo(map)
-            // ✅ สำคัญ: ให้ Leaflet สร้าง popup ใหม่ทุกครั้ง (TH/EN จะขึ้นจริง)
             .bindPopup(() => popupHTML(p), { maxWidth: 380 })
             .on('popupopen', () => {
               track('open_place', { place_id: p.id || '', place_name: p.community || '' });
@@ -371,8 +392,7 @@
       LANG = next;
       thBtn.classList.toggle('active', LANG === "th");
       enBtn.classList.toggle('active', LANG === "en");
-      map.closePopup();
-      // ไม่ต้อง rerender markers เพราะ popupHTML จะคำนวณใหม่ตอนเปิดอยู่แล้ว
+      map.closePopup(); // เปิดใหม่จะเป็นภาษาที่เลือก
     }
     thBtn.addEventListener('click', () => setLang("th"));
     enBtn.addEventListener('click', () => setLang("en"));
