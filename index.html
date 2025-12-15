@@ -5,6 +5,15 @@
   <title>Community Tourism Map</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
+  <!-- Google Analytics 4 -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-SNFCJHF0E4"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){ dataLayer.push(arguments); }
+    gtag('js', new Date());
+    gtag('config', 'G-SNFCJHF0E4', { anonymize_ip: true });
+  </script>
+
   <!-- Leaflet CSS -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 
@@ -12,15 +21,40 @@
     html, body { margin: 0; height: 100%; }
     #map { width: 100%; height: 100%; }
 
+    /* Top bar */
+    .topbar{
+      position:absolute; z-index:10000; left:10px; right:10px; top:10px;
+      display:flex; gap:10px; align-items:center; justify-content:space-between;
+      background:rgba(255,255,255,0.92); border-radius:12px; padding:8px 10px;
+      backdrop-filter: blur(6px);
+    }
+    .logos{ display:flex; gap:8px; align-items:center; }
+    .logos img{ height:34px; width:auto; }
+    .credit{ font-size:12px; line-height:1.35; text-align:right; }
+
+    /* Language toggle */
+    .lang{ display:flex; gap:6px; align-items:center; font-size:12px; }
+    .pill{
+      border:1px solid #ddd; border-radius:999px; padding:6px 10px;
+      background:#fff; cursor:pointer; user-select:none;
+    }
+    .pill.active{ border-color:#111; font-weight:700; }
+
     .hint{
       position:absolute; z-index:9999; left:10px; bottom:10px;
       background:rgba(0,0,0,0.65); color:#fff; padding:8px 10px;
       border-radius:10px; font-size:12px; max-width: 92vw;
     }
+    .status{
+      position:absolute; z-index:9999; left:10px; bottom:54px;
+      background:rgba(220,0,0,0.72); color:#fff; padding:8px 10px;
+      border-radius:10px; font-size:12px; max-width: 92vw;
+      display:none;
+    }
 
     .popup { max-width: 360px; }
     .popup h3 { margin: 8px 0 6px 0; font-size: 16px; }
-    .popup .row { font-size: 13px; line-height: 1.45; margin: 2px 0; }
+    .popup .row { font-size: 13px; line-height: 1.45; margin: 4px 0; }
     .popup .row b { display:inline-block; min-width: 120px; }
     .popup img{
       width:100%;
@@ -32,11 +66,48 @@
       background:#f3f3f3;
     }
     .popup .muted { opacity: 0.85; }
+
+    .btns{ display:flex; gap:8px; flex-wrap:wrap; margin-top:10px; }
+    .btn{
+      display:inline-block; padding:8px 10px; border-radius:10px;
+      border:1px solid #ddd; background:#fff; font-size:13px;
+      text-decoration:none; color:#111;
+      cursor:pointer;
+    }
+    .btn.primary{ border-color:#111; font-weight:700; }
+    .btn:active{ transform: translateY(1px); }
+
+    @media (max-width: 520px){
+      .topbar{ flex-direction:column; align-items:flex-start; }
+      .credit{ text-align:left; }
+      .logos img{ height:28px; }
+    }
   </style>
 </head>
 
 <body>
+  <div class="topbar">
+    <div class="logos">
+      <img src="logo-cdd.png" alt="CDD">
+      <img src="logo-surat.png" alt="Surat Thani">
+      <img src="logo-otop.png" alt="OTOP">
+    </div>
+
+    <div style="display:flex; gap:10px; align-items:center; width:100%; justify-content:space-between;">
+      <div class="lang">
+        <div id="thBtn" class="pill active">TH</div>
+        <div id="enBtn" class="pill">EN</div>
+      </div>
+
+      <div class="credit">
+        แผนที่ชุมชนท่องเที่ยว OTOP นวัตวิถี จ.สุราษฎร์ธานี<br>
+        พัฒนาโดย: ศุภรา เจนพิชัย นักวิชาการพัฒนาชุมชนชำนาญการ (HiPPS19)
+      </div>
+    </div>
+  </div>
+
   <div id="map"></div>
+  <div id="status" class="status"></div>
   <div class="hint">คลิกบนแผนที่ → ดูค่า y,x ที่ Console (F12)</div>
 
   <!-- Leaflet JS -->
@@ -49,14 +120,11 @@
     const IMG_WIDTH  = 2000;
     const IMG_HEIGHT = 1414;
 
-    // ✅ ใส่ Spreadsheet ID ของคุณตรงนี้ (ของคุณใส่ไว้แล้ว)
     const SPREADSHEET_ID = "1Bhs5pWubt0RZppJJ8ks1fs8Ovrh_fkENoF2W6NB77jY";
-
-    // ✅ ชื่อชีทที่เก็บข้อมูล
     const SHEET_NAME = "places";
-
-    // ✅ URL JSON (กัน cache ด้วย)
     const SHEET_URL = `https://opensheet.elk.sh/${SPREADSHEET_ID}/${SHEET_NAME}?t=${Date.now()}`;
+
+    let LANG = "th"; // "th" | "en"
 
     /***********************
      * 2) MAP INIT
@@ -73,8 +141,21 @@
     L.imageOverlay('map.png', bounds).addTo(map);
     map.fitBounds(bounds);
 
+    const statusEl = document.getElementById('status');
+
     /***********************
-     * 3) HELPERS
+     * 3) TRACKING HELPERS
+     ***********************/
+    function track(eventName, params = {}) {
+      try {
+        if (typeof window.gtag === "function") {
+          window.gtag('event', eventName, params);
+        }
+      } catch (e) {}
+    }
+
+    /***********************
+     * 4) DATA HELPERS
      ***********************/
     function safe(v) {
       if (v === null || v === undefined) return "-";
@@ -82,7 +163,6 @@
       return s ? s : "-";
     }
 
-    // รองรับเลขไทย ๐-๙ ที่อาจเผลอพิมพ์มา
     function thaiDigitsToArabic(str) {
       const map = {'๐':'0','๑':'1','๒':'2','๓':'3','๔':'4','๕':'5','๖':'6','๗':'7','๘':'8','๙':'9'};
       return String(str).replace(/[๐-๙]/g, d => map[d]);
@@ -95,22 +175,57 @@
       return Number.isFinite(n) ? n : NaN;
     }
 
-    // แปลงลิงก์ Google Drive แบบ /file/d/.../view ให้เป็นลิงก์รูปโดยตรง
     function normalizeImageUrl(url) {
       if (!url) return "";
       const u = String(url).trim();
-
-      // ถ้าเป็นแบบ uc?id=... อยู่แล้ว ใช้ได้เลย
       if (u.includes("drive.google.com/uc?id=")) return u;
 
-      // ถ้าเป็นแบบ /file/d/FILE_ID/view
       const m = u.match(/drive\.google\.com\/file\/d\/([^\/]+)\//);
-      if (m && m[1]) {
-        return `https://drive.google.com/uc?id=${m[1]}`;
-      }
+      if (m && m[1]) return `https://drive.google.com/uc?id=${m[1]}`;
 
-      // ถ้าเป็นลิงก์รูปปกติ (https://...jpg/png) ก็ใช้ได้
+      // open?id=...
+      const m2 = u.match(/drive\.google\.com\/open\?id=([^&]+)/);
+      if (m2 && m2[1]) return `https://drive.google.com/uc?export=view&id=${m2[1]}`;
+
       return u;
+    }
+
+    function textByLang(thVal, enVal){
+      return (LANG === "en") ? safe(enVal) : safe(thVal);
+    }
+
+    function titleByLang(p){
+      if (LANG === "en" && p.Community_en && String(p.Community_en).trim()) return safe(p.Community_en);
+      return safe(p.community);
+    }
+
+    /***********************
+     * 5) POPUP BUTTON BUILDERS
+     ***********************/
+    function linkBtn(label, url, placeName, extraClass = "btn") {
+      const u = (url && String(url).trim()) ? String(url).trim() : "";
+      if (!u || u === "-") return "";
+      // data-* for tracking
+      return `
+        <a class="${extraClass} track-link"
+           href="${u}"
+           target="_blank"
+           rel="noopener"
+           data-platform="${label}"
+           data-place="${encodeURIComponent(placeName || '')}">
+          ${label}
+        </a>`;
+    }
+
+    function navBtn(lat, lng, placeName) {
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) return "";
+      return `
+        <button class="btn primary track-nav"
+          data-lat="${lat}"
+          data-lng="${lng}"
+          data-place="${encodeURIComponent(placeName || '')}">
+          นำทาง (Google Maps)
+        </button>`;
     }
 
     function popupHTML(p) {
@@ -119,25 +234,54 @@
         ? `<img src="${imgUrl}" alt="image" onerror="this.style.display='none';">`
         : "";
 
+      const placeNameTH = safe(p.community);
+      const placeName = (LANG === "en") ? titleByLang(p) : placeNameTH;
+
+      const lat = toNumber(p.lat);
+      const lng = toNumber(p.lng);
+
+      const howto = textByLang(p.how_to_go_th, p.how_to_go_en);
+      const travelText = (howto !== "-") ? howto : textByLang(p.travel, p.travel_en);
+
+      const fb   = linkBtn("Facebook", p.fb_url, placeNameTH);
+      const tt   = linkBtn("TikTok", p.tiktok_url, placeNameTH);
+      const line = linkBtn("LINE", p.line_url, placeNameTH);
+      const video = linkBtn((LANG==="en"?"Watch video":"ดูคลิป"), p.video_url, placeNameTH, "btn primary");
+
+      const nav = navBtn(lat, lng, placeNameTH);
+
       return `
         <div class="popup">
           ${img}
-          <h3>${safe(p.community)}</h3>
+          <h3>${placeName}</h3>
 
-          <div class="row muted"><b>พื้นที่:</b> ต.${safe(p.tambon)} อ.${safe(p.amphoe)} จ.${safe(p.province)}</div>
-          <div class="row"><b>วัน-เวลาทำการ:</b> ${safe(p.hours)}</div>
-          <div class="row"><b>ช่วงฤดูกาลแนะนำ:</b> ${safe(p.season)}</div>
-          <div class="row"><b>กิจกรรม/ค่าบริการ:</b> ${safe(p.fee)}</div>
-          <div class="row"><b>กิจกรรมไฮไลท์:</b> ${safe(p.highlights)}</div>
-          <div class="row"><b>การเดินทาง:</b> ${safe(p.travel)}</div>
-          <div class="row"><b>รับ-ส่ง/ค่าบริการ:</b> ${safe(p.shuttle)}</div>
-          <div class="row"><b>ผู้ประสานงาน:</b> ${safe(p.contact)}</div>
+          <div class="row muted"><b>${LANG==="en"?"Area":"พื้นที่"}:</b>
+            ${LANG==="en"?"Sub-district":"ต."}${safe(p.tambon)}
+            ${LANG==="en"?"District":"อ."}${safe(p.amphoe)}
+            ${LANG==="en"?"Province":"จ."}${safe(p.province)}
+          </div>
+
+          <div class="row"><b>${LANG==="en"?"Hours":"วัน-เวลาทำการ"}:</b> ${textByLang(p.hours, p.hours_en)}</div>
+          <div class="row"><b>${LANG==="en"?"Best season":"ช่วงฤดูกาลแนะนำ"}:</b> ${textByLang(p.season, p.season_en)}</div>
+          <div class="row"><b>${LANG==="en"?"Fee":"กิจกรรม/ค่าบริการ"}:</b> ${textByLang(p.fee, p.fee_en)}</div>
+          <div class="row"><b>${LANG==="en"?"Highlights":"กิจกรรมไฮไลท์"}:</b> ${textByLang(p.highlights, p.highlights_en)}</div>
+          <div class="row"><b>${LANG==="en"?"How to go":"การเดินทาง"}:</b> ${travelText}</div>
+          <div class="row"><b>${LANG==="en"?"Shuttle":"รับ-ส่ง/ค่าบริการ"}:</b> ${textByLang(p.shuttle, p.shuttle_en)}</div>
+          <div class="row"><b>${LANG==="en"?"Contact":"ผู้ประสานงาน"}:</b> ${textByLang(p.contact, p.contact_en)}</div>
+
+          <div class="btns">
+            ${nav}
+            ${video}
+            ${line}
+            ${fb}
+            ${tt}
+          </div>
         </div>
       `;
     }
 
     /***********************
-     * 4) LOAD SHEET + MARKERS
+     * 6) LOAD SHEET + MARKERS
      ***********************/
     fetch(SHEET_URL)
       .then(res => {
@@ -145,6 +289,8 @@
         return res.json();
       })
       .then(rows => {
+        statusEl.style.display = "none";
+
         rows.forEach(p => {
           const y = toNumber(p.y);
           const x = toNumber(p.x);
@@ -152,24 +298,68 @@
 
           L.marker([y, x])
             .addTo(map)
-            .bindPopup(popupHTML(p), { maxWidth: 360 });
+            .bindPopup(popupHTML(p), { maxWidth: 360 })
+            .on('popupopen', () => {
+              track('open_place', {
+                place_id: p.id || '',
+                place_name: p.community || ''
+              });
+            });
         });
       })
       .catch(err => {
         console.error("Fetch sheet error:", err);
-        alert("โหลดข้อมูลจาก Google Sheet ไม่ได้\nถ้าเปิดแบบ file:/// ให้ลองเปิดผ่าน localhost");
+        statusEl.style.display = "block";
+        statusEl.textContent = "ดึงข้อมูลจาก Google Sheet ไม่ได้ (เช็กชื่อชีท places และการ Publish/Share)";
       });
 
     /***********************
-     * 5) UX: click blank close popup
+     * 7) CLICK: blank close popup + show y,x for pinning
      ***********************/
     map.on('click', () => map.closePopup());
-
-    /***********************
-     * 6) UX: click show y,x for pinning
-     ***********************/
     map.on('click', (e) => {
       console.log("y,x =", e.latlng.lat.toFixed(2), e.latlng.lng.toFixed(2));
+    });
+
+    /***********************
+     * 8) LANGUAGE TOGGLE
+     ***********************/
+    const thBtn = document.getElementById('thBtn');
+    const enBtn = document.getElementById('enBtn');
+
+    function setLang(next){
+      LANG = next;
+      thBtn.classList.toggle('active', LANG === "th");
+      enBtn.classList.toggle('active', LANG === "en");
+      map.closePopup(); // open next popup with new language
+    }
+    thBtn.addEventListener('click', () => setLang("th"));
+    enBtn.addEventListener('click', () => setLang("en"));
+
+    /***********************
+     * 9) DELEGATED EVENTS (for Leaflet popup HTML)
+     ***********************/
+    document.addEventListener('click', (ev) => {
+      const nav = ev.target.closest('.track-nav');
+      if (nav) {
+        const lat = Number(nav.dataset.lat);
+        const lng = Number(nav.dataset.lng);
+        const place = decodeURIComponent(nav.dataset.place || '');
+
+        track('click_navigate', { place_name: place });
+
+        const url = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=driving`;
+        window.open(url, "_blank", "noopener");
+        return;
+      }
+
+      const a = ev.target.closest('.track-link');
+      if (a) {
+        const platform = a.dataset.platform || '';
+        const place = decodeURIComponent(a.dataset.place || '');
+        // video link will also be counted as social if label is "ดูคลิป"/"Watch video"
+        track('click_social', { platform, place_name: place });
+      }
     });
   </script>
 </body>
