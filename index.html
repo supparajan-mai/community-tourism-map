@@ -52,6 +52,21 @@
       border-radius:10px; font-size:12px; max-width: 92vw;
       display:none;
     }
+/* ===== FIX POPUP FOR MOBILE ===== */
+.leaflet-popup-content {
+  max-height: 60vh;      /* สูงสุด 60% ของจอ */
+  overflow-y: auto;      /* เลื่อนภายใน popup */
+  -webkit-overflow-scrolling: touch;
+}
+
+.leaflet-popup-content-wrapper {
+  border-radius: 14px;
+}
+
+.leaflet-popup-close-button {
+  font-size: 18px;
+}
+
 
     /* ===== Footer credit (ย้ายพัฒนาโดยลงล่าง) ===== */
     .footer{
@@ -67,7 +82,14 @@
     }
 
     /* ===== Popup style ===== */
-    .popup { max-width: 380px; }
+    .bindPopup(() => popupHTML(p), {
+  maxWidth: 380,
+  maxHeight: window.innerHeight * 0.6,
+  autoPan: true,
+  keepInView: true,
+  closeButton: true
+})
+
     .popup h3 { margin: 8px 0 6px 0; font-size: 16px; }
     .popup .row { font-size: 13px; line-height: 1.45; margin: 4px 0; }
     .popup .row b { display:inline-block; min-width: 140px; }
