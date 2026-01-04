@@ -2,175 +2,236 @@
 <html lang="th">
 <head>
   <meta charset="utf-8" />
-  <title>Community Tourism Map</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ปักหมุดชมวิถี | Community Tourism Map</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
 
   <!-- Leaflet CSS -->
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+  />
+
+  <!-- Google Analytics GA4 -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-SNFCJHF0E4"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', 'G-SNFCJHF0E4');
+  </script>
 
   <style>
-    html, body { margin: 0; height: 100%; }
-    #map { width: 100%; height: 100%; }
-
-    .hint{
-      position:absolute; z-index:9999; left:10px; bottom:10px;
-      background:rgba(0,0,0,0.65); color:#fff; padding:8px 10px;
-      border-radius:10px; font-size:12px; max-width: 92vw;
+    html, body {
+      margin: 0;
+      height: 100%;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     }
 
-    .popup { max-width: 360px; }
-    .popup h3 { margin: 8px 0 6px 0; font-size: 16px; }
-    .popup .row { font-size: 13px; line-height: 1.45; margin: 2px 0; }
-    .popup .row b { display:inline-block; min-width: 120px; }
-    .popup img{
-      width:100%;
-      max-height:170px;
-      object-fit:cover;
-      border-radius:10px;
-      display:block;
-      margin-bottom:8px;
-      background:#f3f3f3;
+    #map {
+      width: 100%;
+      height: 100%;
     }
-    .popup .muted { opacity: 0.85; }
+
+    /* Popup */
+    .popup {
+      max-width: 360px;
+      max-height: 70vh;          /* ⭐ สำคัญ: กัน popup เต็มจอมือถือ */
+      overflow-y: auto;
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    .popup img {
+      width: 100%;
+      max-height: 180px;
+      object-fit: cover;
+      border-radius: 10px;
+      margin-bottom: 8px;
+      background: #eee;
+    }
+
+    .popup h3 {
+      margin: 6px 0 8px;
+      font-size: 16px;
+    }
+
+    .popup .row {
+      margin: 2px 0;
+    }
+
+    .popup .row b {
+      display: inline-block;
+      min-width: 110px;
+    }
+
+    /* Social buttons */
+    .social {
+      display: flex;
+      gap: 8px;
+      margin-top: 8px;
+      flex-wrap: wrap;
+    }
+
+    .social a {
+      flex: 1;
+      text-align: center;
+      padding: 6px 8px;
+      border-radius: 8px;
+      color: #fff;
+      font-size: 12px;
+      text-decoration: none;
+    }
+
+    .fb { background:#1877f2; }
+    .line { background:#06c755; }
+    .tt { background:#000; }
+
+    /* Footer credit */
+    .credit {
+      position: absolute;
+      bottom: 8px;
+      right: 8px;
+      z-index: 999;
+      background: rgba(255,255,255,0.9);
+      padding: 8px 10px;
+      border-radius: 10px;
+      font-size: 11px;
+      max-width: 92vw;
+    }
   </style>
 </head>
 
 <body>
-  <div id="map"></div>
-  <div class="hint">คลิกบนแผนที่ → ดูค่า y,x ที่ Console (F12)</div>
 
-  <!-- Leaflet JS -->
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<div id="map"></div>
 
-  <script>
-    /***********************
-     * 1) CONFIG
-     ***********************/
-    const IMG_WIDTH  = 2000;
-    const IMG_HEIGHT = 1414;
+<div class="credit">
+  แผนที่ชุมชนท่องเที่ยว OTOP นวัตวิถี จ.สุราษฎร์ธานี<br>
+  พัฒนาโดย: <b>ศุภรา เจนพิชัย</b> (HiPPS19)
+</div>
 
-    // ✅ ใส่ Spreadsheet ID ของคุณตรงนี้ (ของคุณใส่ไว้แล้ว)
-    const SPREADSHEET_ID = "1Bhs5pWubt0RZppJJ8ks1fs8Ovrh_fkENoF2W6NB77jY";
+<!-- Leaflet JS -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
-    // ✅ ชื่อชีทที่เก็บข้อมูล
-    const SHEET_NAME = "places";
+<script>
+/***********************
+ * CONFIG
+ ***********************/
+const IMG_WIDTH  = 2000;
+const IMG_HEIGHT = 1414;
 
-    // ✅ URL JSON (กัน cache ด้วย)
-    const SHEET_URL = `https://opensheet.elk.sh/${SPREADSHEET_ID}/${SHEET_NAME}?t=${Date.now()}`;
+const SPREADSHEET_ID = "1Bhs5pWubt0RZppJJ8ks1fs8Ovrh_fkENoF2W6NB77jY";
+const SHEET_NAME = "places";
 
-    /***********************
-     * 2) MAP INIT
-     ***********************/
-    const map = L.map('map', {
-      crs: L.CRS.Simple,
-      minZoom: -2,
-      maxZoom: 2,
-      zoomSnap: 0.25,
-      scrollWheelZoom: false
-    });
+const SHEET_URL =
+  `https://opensheet.elk.sh/${SPREADSHEET_ID}/${SHEET_NAME}?t=${Date.now()}`;
 
-    const bounds = [[0,0], [IMG_HEIGHT, IMG_WIDTH]];
-    L.imageOverlay('map.png', bounds).addTo(map);
-    map.fitBounds(bounds);
+/***********************
+ * MAP INIT
+ ***********************/
+const map = L.map('map', {
+  crs: L.CRS.Simple,
+  minZoom: -2,
+  maxZoom: 2,
+  zoomSnap: 0.25,
+  scrollWheelZoom: true
+});
 
-    /***********************
-     * 3) HELPERS
-     ***********************/
-    function safe(v) {
-      if (v === null || v === undefined) return "-";
-      const s = String(v).trim();
-      return s ? s : "-";
-    }
+const bounds = [[0,0], [IMG_HEIGHT, IMG_WIDTH]];
+L.imageOverlay('map.png', bounds).addTo(map);
+map.fitBounds(bounds);
 
-    // รองรับเลขไทย ๐-๙ ที่อาจเผลอพิมพ์มา
-    function thaiDigitsToArabic(str) {
-      const map = {'๐':'0','๑':'1','๒':'2','๓':'3','๔':'4','๕':'5','๖':'6','๗':'7','๘':'8','๙':'9'};
-      return String(str).replace(/[๐-๙]/g, d => map[d]);
-    }
+/***********************
+ * HELPERS
+ ***********************/
+function safe(v) {
+  if (v === null || v === undefined) return "-";
+  const s = String(v).trim();
+  return s ? s : "-";
+}
 
-    function toNumber(v) {
-      if (v === null || v === undefined) return NaN;
-      const s = thaiDigitsToArabic(String(v)).replace(/,/g,'').trim();
-      const n = Number(s);
-      return Number.isFinite(n) ? n : NaN;
-    }
+function thaiDigitsToArabic(str) {
+  const map = {'๐':'0','๑':'1','๒':'2','๓':'3','๔':'4','๕':'5','๖':'6','๗':'7','๘':'8','๙':'9'};
+  return String(str).replace(/[๐-๙]/g, d => map[d]);
+}
 
-    // แปลงลิงก์ Google Drive แบบ /file/d/.../view ให้เป็นลิงก์รูปโดยตรง
-    function normalizeImageUrl(url) {
-      if (!url) return "";
-      const u = String(url).trim();
+function toNumber(v) {
+  if (v === null || v === undefined) return NaN;
+  const s = thaiDigitsToArabic(String(v)).replace(/,/g,'').trim();
+  const n = Number(s);
+  return Number.isFinite(n) ? n : NaN;
+}
 
-      // ถ้าเป็นแบบ uc?id=... อยู่แล้ว ใช้ได้เลย
-      if (u.includes("drive.google.com/uc?id=")) return u;
+function normalizeImageUrl(url) {
+  if (!url) return "";
+  const u = String(url).trim();
+  const m = u.match(/drive\.google\.com\/file\/d\/([^\/]+)\//);
+  if (m && m[1]) {
+    return `https://drive.google.com/uc?id=${m[1]}`;
+  }
+  return u;
+}
 
-      // ถ้าเป็นแบบ /file/d/FILE_ID/view
-      const m = u.match(/drive\.google\.com\/file\/d\/([^\/]+)\//);
-      if (m && m[1]) {
-        return `https://drive.google.com/uc?id=${m[1]}`;
-      }
+/***********************
+ * POPUP
+ ***********************/
+function popupHTML(p) {
+  const imgUrl = normalizeImageUrl(p.image_url);
+  const img = imgUrl ? `<img src="${imgUrl}" onerror="this.style.display='none';">` : "";
 
-      // ถ้าเป็นลิงก์รูปปกติ (https://...jpg/png) ก็ใช้ได้
-      return u;
-    }
+  const social = `
+    <div class="social">
+      ${p.fb_url ? `<a class="fb" href="${p.fb_url}" target="_blank">Facebook</a>` : ``}
+      ${p.line_url ? `<a class="line" href="${p.line_url}" target="_blank">LINE</a>` : ``}
+      ${p.tiktok_url ? `<a class="tt" href="${p.tiktok_url}" target="_blank">TikTok</a>` : ``}
+    </div>
+  `;
 
-    function popupHTML(p) {
-      const imgUrl = normalizeImageUrl(p.image_url);
-      const img = imgUrl
-        ? `<img src="${imgUrl}" alt="image" onerror="this.style.display='none';">`
-        : "";
+  return `
+    <div class="popup">
+      ${img}
+      <h3>${safe(p.community)}</h3>
 
-      return `
-        <div class="popup">
-          ${img}
-          <h3>${safe(p.community)}</h3>
+      <div class="row"><b>พื้นที่:</b> ต.${safe(p.tambon)} อ.${safe(p.amphoe)}</div>
+      <div class="row"><b>วัน-เวลา:</b> ${safe(p.hours)}</div>
+      <div class="row"><b>ฤดูกาลแนะนำ:</b> ${safe(p.season)}</div>
+      <div class="row"><b>กิจกรรม:</b> ${safe(p.highlights)}</div>
+      <div class="row"><b>สิ่งอำนวยความสะดวก:</b> ${safe(p.Facilities)}</div>
+      <div class="row"><b>การเดินทาง:</b> ${safe(p.how_to_go_th)}</div>
+      <div class="row"><b>ติดต่อ:</b> ${safe(p.contact)}</div>
 
-          <div class="row muted"><b>พื้นที่:</b> ต.${safe(p.tambon)} อ.${safe(p.amphoe)} จ.${safe(p.province)}</div>
-          <div class="row"><b>วัน-เวลาทำการ:</b> ${safe(p.hours)}</div>
-          <div class="row"><b>ช่วงฤดูกาลแนะนำ:</b> ${safe(p.season)}</div>
-          <div class="row"><b>กิจกรรม/ค่าบริการ:</b> ${safe(p.fee)}</div>
-          <div class="row"><b>กิจกรรมไฮไลท์:</b> ${safe(p.highlights)}</div>
-          <div class="row"><b>การเดินทาง:</b> ${safe(p.travel)}</div>
-          <div class="row"><b>รับ-ส่ง/ค่าบริการ:</b> ${safe(p.shuttle)}</div>
-          <div class="row"><b>ผู้ประสานงาน:</b> ${safe(p.contact)}</div>
-        </div>
-      `;
-    }
+      ${social}
+    </div>
+  `;
+}
 
-    /***********************
-     * 4) LOAD SHEET + MARKERS
-     ***********************/
-    fetch(SHEET_URL)
-      .then(res => {
-        if (!res.ok) throw new Error("HTTP " + res.status);
-        return res.json();
-      })
-      .then(rows => {
-        rows.forEach(p => {
-          const y = toNumber(p.y);
-          const x = toNumber(p.x);
-          if (!Number.isFinite(y) || !Number.isFinite(x)) return;
+/***********************
+ * LOAD DATA
+ ***********************/
+fetch(SHEET_URL)
+  .then(res => res.json())
+  .then(rows => {
+    rows.forEach(p => {
+      const y = toNumber(p.y);
+      const x = toNumber(p.x);
+      if (!Number.isFinite(y) || !Number.isFinite(x)) return;
 
-          L.marker([y, x])
-            .addTo(map)
-            .bindPopup(popupHTML(p), { maxWidth: 360 });
+      L.marker([y, x])
+        .addTo(map)
+        .bindPopup(popupHTML(p), {
+          maxWidth: 360,
+          autoPan: true,
+          closeButton: true
         });
-      })
-      .catch(err => {
-        console.error("Fetch sheet error:", err);
-        alert("โหลดข้อมูลจาก Google Sheet ไม่ได้\nถ้าเปิดแบบ file:/// ให้ลองเปิดผ่าน localhost");
-      });
-
-    /***********************
-     * 5) UX: click blank close popup
-     ***********************/
-    map.on('click', () => map.closePopup());
-
-    /***********************
-     * 6) UX: click show y,x for pinning
-     ***********************/
-    map.on('click', (e) => {
-      console.log("y,x =", e.latlng.lat.toFixed(2), e.latlng.lng.toFixed(2));
     });
-  </script>
+  })
+  .catch(err => {
+    console.error(err);
+    alert("ไม่สามารถโหลดข้อมูลจาก Google Sheet ได้");
+  });
+
+map.on('click', () => map.closePopup());
+</script>
+
 </body>
 </html>
