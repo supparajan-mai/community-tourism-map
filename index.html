@@ -1,29 +1,115 @@
 <!doctype html>
 <html lang="th">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>พี่พร้อม (P'Prompt) - เพื่อนคู่คิด</title>
-    <meta name="theme-color" content="#ea580c" />
-    <link rel="manifest" href="/manifest.json" />
-    <!-- ไอคอน Base64 เดิม -->
-    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHdpZHRoPScxOTInIGhlaWdodD0nMTkyJyB2aWV3Qm94PScwIDAgMTkyIDE5Mic+PGRlZnM+PGxpbmVhckdyYWRpZW50IGlkPSdnJyB4MT0nMCcgeTE9JzAnIHgyPScxJyB5Mj0nMSc+PHN0b3Agb2Zmc2V0PScwJScgc3RvcC1jb2xvcj0nI2ZiOTIzYycvPjxzdG9wIG9mZnNldD0nMTAwJScgc3RvcC1jb2xvcj0nI2VhNTgwYycvPjwvbGluZWFyR3JhZGllbnQ+PC9kZWZzPjxyZWN0IHdpZHRoPScxOTInIGhlaWdodD0nMTkyJyByeD0nNDgnIGZpbGw9J3VybCgjZyknLz48ZyBmaWxsPSd3aGl0ZScgdHJhbnNmb3JtPSd0cmFuc2xhdGUoNDYsIDU2KSBzY2FsZSg0KSc+PHBhdGggZD0nTTE2IDIxdi0yYTQgNCAwIDAgMC00LTRINWE0IDQgMCAwIDAtNCA0djInLz48Y2lyY2xlIGN4PSc4LjUnIGN5PSc3JyByPSc0Jy8+PHBhdGggZD0nTTIyIDIxdi0yYTQgNCAwIDAgMC0zLTMuODcnLz48cGF0aCBkPSdNMTYgMy4xM2E0IDQgMCAwIDEgMCA3Ljc1Jy8+PC9nPjwvc3ZnPg==" />
-    <link rel="apple-touch-icon" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHdpZHRoPScxOTInIGhlaWdodD0nMTkyJyB2aWV3Qm94PScwIDAgMTkyIDE5Mic+PGRlZnM+PGxpbmVhckdyYWRpZW50IGlkPSdnJyB4MT0nMCcgeTE9JzAnIHgyPScxJyB5Mj0nMSc+PHN0b3Agb2Zmc2V0PScwJScgc3RvcC1jb2xvcj0nI2ZiOTIzYycvPjxzdG9wIG9mZnNldD0nMTAwJScgc3RvcC1jb2xvcj0nI2VhNTgwYycvPjwvbGluZWFyR3JhZGllbnQ+PC9kZWZzPjxyZWN0IHdpZHRoPScxOTInIGhlaWdodD0nMTkyJyByeD0nNDgnIGZpbGw9J3VybCgjZyknLz48ZyBmaWxsPSd3aGl0ZScgdHJhbnNmb3JtPSd0cmFuc2xhdGUoNDYsIDU2KSBzY2FsZSg0KSc+PHBhdGggZD0nTTE2IDIxdi0yYTQgNCAwIDAgMC00LTRINWE0IDQgMCAwIDAtNCA0djInLz48Y2lyY2xlIGN4PSc4LjUnIGN5PSc3JyByPSc0Jy8+PHBhdGggZD0nTTIyIDIxdi0yYTQgNCAwIDAgMC0zLTMuODcnLz48cGF0aCBkPSdNMTYgMy4xM2E0IDQgMCAwIDEgMCA3Ljc1Jy8+PC9nPjwvc3ZnPg==" />
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
-    <script>
-      // ลงทะเบียนพนักงานเฝ้าเวร
-      if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-          navigator.serviceWorker.register('/sw.js').then(reg => {
-            console.log('พี่พร้อม สแตนด์บายเรียบร้อย!');
-          }).catch(err => {
-            console.log('พนักงานเฝ้าเวรลาหยุด:', err);
-          });
-        });
-      }
-    </script>
-  </body>
+<head>
+  <meta charset="utf-8" />
+  <title>Community Tourism Map</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+
+  <style>
+    html, body { margin: 0; height: 100%; }
+    #map { width: 100%; height: 100%; }
+    .popup h3 { margin: 0 0 6px 0; font-size: 16px; }
+    .popup div { font-size: 13px; line-height: 1.4; }
+    .hint{
+      position:absolute; z-index:9999; left:10px; bottom:10px;
+      background:rgba(0,0,0,0.65); color:#fff; padding:8px 10px;
+      border-radius:8px; font-size:12px;
+    }
+  </style>
+</head>
+
+<body>
+<div id="map"></div>
+<div class="hint">คลิกบนแผนที่ → ดูค่า y,x ที่ Console (F12)</div>
+
+<!-- Leaflet JS -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<script>
+  /***********************
+   * 1) ตั้งค่าพื้นฐาน
+   ***********************/
+  const IMG_WIDTH  = 2000;
+  const IMG_HEIGHT = 1414;
+
+  // (ยังไม่ใช้ตอนนี้ เพราะคุณปิด fetch ไว้แล้ว)
+  const SHEET_URL = "https://opensheet.elk.sh/1Bhs5pWubt0RZppJJ8ks1fs8Ovrh_fkENoF2W6NB77jY/places";
+
+  /***********************
+   * 2) สร้างแผนที่
+   ***********************/
+  const map = L.map('map', {
+    crs: L.CRS.Simple,
+    minZoom: -2,
+    maxZoom: 2,
+    zoomSnap: 0.25,
+    scrollWheelZoom: false
+  });
+
+  const bounds = [[0,0], [IMG_HEIGHT, IMG_WIDTH]];
+  L.imageOverlay('map.png', bounds).addTo(map);
+  map.fitBounds(bounds);
+
+  /***********************
+   * 3) ฟังก์ชันช่วย
+   ***********************/
+  function safe(v) {
+    return (v && v.trim()) ? v : "-";
+  }
+
+  function popupHTML(p) {
+    return `
+      <div class="popup">
+        <h3>${safe(p.community)}</h3>
+        <div><b>พื้นที่:</b> ต.${safe(p.tambon)} อ.${safe(p.amphoe)} จ.${safe(p.province)}</div>
+        <div><b>วัน-เวลาทำการ:</b> ${safe(p.hours)}</div>
+        <div><b>ช่วงฤดูกาลแนะนำ:</b> ${safe(p.season)}</div>
+        <div><b>กิจกรรม / ค่าบริการ:</b> ${safe(p.fee)}</div>
+        <div><b>กิจกรรมไฮไลท์:</b> ${safe(p.highlights)}</div>
+        <div><b>การเดินทางจากตัวเมือง:</b> ${safe(p.travel)}</div>
+        <div><b>บริการรับ-ส่ง:</b> ${safe(p.shuttle)}</div>
+        <div><b>ผู้ประสานงาน:</b> ${safe(p.contact)}</div>
+      </div>
+    `;
+  }
+
+  /***********************
+   * 4) โหลดข้อมูลจาก Google Sheet (ปิดไว้ก่อน)
+   ***********************/
+  /*
+  fetch(SHEET_URL)
+    .then(res => res.json())
+    .then(data => {
+      data.forEach(p => {
+        const y = Number(p.y);
+        const x = Number(p.x);
+        if (!Number.isFinite(y) || !Number.isFinite(x)) return;
+
+        L.marker([y, x])
+          .addTo(map)
+          .bindPopup(popupHTML(p), { maxWidth: 340 });
+      });
+    })
+    .catch(err => {
+      console.error(err);
+      alert("โหลดข้อมูลจาก Google Sheet ไม่ได้");
+    });
+  */
+
+  /***********************
+   * 5) คลิกที่ว่าง = ปิด popup
+   ***********************/
+  map.on('click', () => map.closePopup());
+
+  /***********************
+   * 6) คลิกเพื่อดูค่า y,x
+   ***********************/
+  map.on('click', (e) => {
+    console.log("y,x =", e.latlng.lat.toFixed(2), e.latlng.lng.toFixed(2));
+  });
+</script>
+</body>
 </html>
